@@ -2,29 +2,51 @@
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuizSession } from '@/composables/useQuizSession';
+import { useQuizStorage } from '@/composables/useQuizStorage';
 import { scoreQuiz } from '@/composables/useScoring';
 import QuizResults from '@/components/QuizResults.vue';
-import type { FlagCategory } from '@/types/quiz';
+import type { CompletedQuiz, FlagCategory } from '@/types/quiz';
 
 const router = useRouter();
 const session = useQuizSession();
+const { saveQuiz } = useQuizStorage();
 const scoreHeading = ref<HTMLElement | null>(null);
 
 const result = computed(() =>
   scoreQuiz(session.questions.value, session.answers.value),
 );
 
+function buildSnapshot(): CompletedQuiz | null {
+  const id = session.quizId.value;
+  const generatedAt = session.generatedAt.value;
+  if (!id || !generatedAt) return null;
+  return {
+    id,
+    topic: session.topic.value,
+    difficulty: session.difficulty.value,
+    completedAt: generatedAt,
+    score: { correct: result.value.correct, total: result.value.total },
+    questions: session.questions.value,
+    answers: { ...session.answers.value },
+    flagged: Array.from(session.flagged.value),
+  };
+}
+
 onMounted(async () => {
   if (session.questions.value.length === 0) {
     void router.replace('/');
     return;
   }
+  const snapshot = buildSnapshot();
+  if (snapshot) saveQuiz(snapshot);
   await nextTick();
   scoreHeading.value?.focus();
 });
 
 async function onFlag(payload: { questionId: string; category: FlagCategory }): Promise<void> {
   session.flagged.value.add(payload.questionId);
+  const snapshot = buildSnapshot();
+  if (snapshot) saveQuiz(snapshot);
   try {
     await fetch('/api/flags', {
       method: 'POST',
@@ -38,7 +60,7 @@ async function onFlag(payload: { questionId: string; category: FlagCategory }): 
       }),
     });
   } catch {
-    // fire-and-forget; UX shouldn't fail on this
+    // fire-and-forget; flagging shouldn't fail the UX
   }
 }
 
