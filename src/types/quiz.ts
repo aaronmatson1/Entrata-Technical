@@ -24,7 +24,6 @@ export interface ClassifierResult {
 }
 
 export interface RefusalResult {
-  refused: true;
   reason: string;
   category: 'harmful' | 'ungroundable' | 'ambiguous';
 }
