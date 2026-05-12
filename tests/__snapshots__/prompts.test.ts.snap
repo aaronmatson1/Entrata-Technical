@@ -1,0 +1,255 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`classifier prompt > system prompt is stable 1`] = `
+"You are a topic safety and viability classifier for an educational quiz generator.
+
+Your job: decide whether a user-submitted topic should proceed to question generation.
+
+Two independent dimensions:
+
+1. VIABLE — is this a real, quizzable factual subject?
+   - Yes: "The French Revolution", "photosynthesis", "the history of jazz", "ancient Egypt"
+   - No: "asdf", "purple elephants on motorcycles", a single letter, random characters
+   - No: "my dog's birthday", personal subjective topics with no public factual content
+
+2. APPROPRIATE — is the topic itself, and the language used to describe it, free of harm?
+   - Inappropriate: slurs, sexual content, instructions for violence or illegal activity, hate speech
+   - Inappropriate: vulgar language directed at people or groups
+   - Appropriate: historical wars, diseases, controversial figures discussed neutrally — these are educational
+
+Edge cases:
+- A topic that is appropriate-in-principle but written with vulgar language → mark appropriate=false, set intent appropriately (careless vs deliberate)
+- Politically charged but legitimate topics (e.g. "the Civil War", "World War 2") → appropriate=true
+- Topics that are real but extremely niche/personal with no Wikipedia presence → still viable=true; let the grounding step handle the missing-article case
+
+Always respond by calling the classify_topic tool. Never respond with plain text."
+`;
+
+exports[`classifier prompt > tool schema is stable 1`] = `
+{
+  "description": "Classify a quiz topic for viability (is it a real, quizzable factual subject?) and appropriateness (free of harmful, explicit, or vulgar content?). You MUST use this tool to respond.",
+  "input_schema": {
+    "properties": {
+      "appropriate": {
+        "description": "True if free of harmful, explicit, vulgar, or offensive content. False if it contains slurs, sexual content, instructions for violence/illegal activity, or hate speech.",
+        "type": "boolean",
+      },
+      "intent": {
+        "description": "Inferred intent: legitimate (clear good-faith topic), careless (vulgar language without clear malicious intent), deliberate (intentionally provocative or harmful), or unclear.",
+        "enum": [
+          "legitimate",
+          "careless",
+          "deliberate",
+          "unclear",
+        ],
+        "type": "string",
+      },
+      "reason": {
+        "description": "Plain-language explanation if viable or appropriate is false. Empty string if both are true.",
+        "type": "string",
+      },
+      "viable": {
+        "description": "True if the topic is a real subject with enough factual content (history, science, geography, culture, etc.) to generate five distinct multiple-choice questions. False for nonsense, single random words, or topics with no factual substance.",
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "viable",
+      "appropriate",
+      "intent",
+      "reason",
+    ],
+    "type": "object",
+  },
+  "name": "classify_topic",
+}
+`;
+
+exports[`classifier prompt > user message has expected shape 1`] = `
+[
+  {
+    "content": "Classify this topic for a 5-question multiple-choice quiz:
+
+photosynthesis",
+    "role": "user",
+  },
+]
+`;
+
+exports[`generator prompt > generate_quiz tool schema is stable 1`] = `
+{
+  "description": "Emit five high-quality multiple-choice questions grounded strictly in the provided Wikipedia context.",
+  "input_schema": {
+    "properties": {
+      "questions": {
+        "items": {
+          "properties": {
+            "correct": {
+              "enum": [
+                "A",
+                "B",
+                "C",
+                "D",
+              ],
+              "type": "string",
+            },
+            "explanation": {
+              "description": "One or two sentences explaining why the correct answer is correct, grounded in the source context.",
+              "type": "string",
+            },
+            "id": {
+              "description": "Short stable id like "q1", "q2", ...",
+              "type": "string",
+            },
+            "options": {
+              "properties": {
+                "A": {
+                  "type": "string",
+                },
+                "B": {
+                  "type": "string",
+                },
+                "C": {
+                  "type": "string",
+                },
+                "D": {
+                  "type": "string",
+                },
+              },
+              "required": [
+                "A",
+                "B",
+                "C",
+                "D",
+              ],
+              "type": "object",
+            },
+            "question": {
+              "type": "string",
+            },
+          },
+          "required": [
+            "id",
+            "question",
+            "options",
+            "correct",
+            "explanation",
+          ],
+          "type": "object",
+        },
+        "maxItems": 5,
+        "minItems": 5,
+        "type": "array",
+      },
+    },
+    "required": [
+      "questions",
+    ],
+    "type": "object",
+  },
+  "name": "generate_quiz",
+}
+`;
+
+exports[`generator prompt > refuse_topic tool schema is stable 1`] = `
+{
+  "description": "Refuse to generate a quiz when the topic is harmful, cannot be grounded in the provided context, or is too ambiguous to produce unambiguous questions. Use this instead of generate_quiz when refusing.",
+  "input_schema": {
+    "properties": {
+      "category": {
+        "enum": [
+          "harmful",
+          "ungroundable",
+          "ambiguous",
+        ],
+        "type": "string",
+      },
+      "reason": {
+        "type": "string",
+      },
+    },
+    "required": [
+      "reason",
+      "category",
+    ],
+    "type": "object",
+  },
+  "name": "refuse_topic",
+}
+`;
+
+exports[`generator prompt > system prompt is stable 1`] = `
+"You are an expert quiz writer producing high-quality multiple-choice questions for an educational quiz tool.
+
+CORE RULES — these never bend:
+1. Every question MUST have exactly ONE unambiguously correct answer (A/B/C/D).
+2. Avoid questions where two or more options could be defensibly correct.
+3. Do NOT introduce facts that are not supported by the provided Wikipedia context. If a fact isn't in the context, don't quiz on it.
+4. Avoid opinion-based, context-dependent, or debatable questions (no "Who is the greatest...", no "Which is more important...").
+5. Distractors must be plausible but clearly wrong on careful reading.
+6. Explanations must reference the context (e.g. "According to the article..."), not the model's prior knowledge.
+
+OUTPUT PROTOCOL:
+- You have two tools available: generate_quiz and refuse_topic.
+- Call generate_quiz when you can produce five high-quality, grounded questions.
+- Call refuse_topic when ANY of these are true:
+  * The topic or context contains harmful content that slipped through earlier filters.
+  * The provided context is too thin, too tangential, or too narrow to support five distinct questions.
+  * The topic is so ambiguous that you cannot produce unambiguously-correct questions.
+- Choose exactly one tool. Never respond with plain text.
+
+DIFFICULTY:
+The user request specifies a difficulty level. Use ONLY the rubric for that level.
+
+EASY — definitional and recognition questions.
+Pattern: "What is X?" / "Which term describes X?" / "X is best defined as ___"
+Distractors are clearly wrong on a careful reading. A reader who has read the context once should score 5/5.
+
+MEDIUM — application and comprehension.
+Pattern: "Which of the following is an example of X?" / "X best explains which of these outcomes?"
+Distractors are plausible to a casual reader but a careful reader can eliminate them.
+
+HARD — synthesis and nuance.
+Pattern: requires connecting two or more facts from the context, or distinguishing between fine-grained variants.
+Distractors are themselves true statements that are not the best answer to the question asked. Avoid trick questions or trivia; reward careful reading."
+`;
+
+exports[`generator prompt > user message for easy difficulty is stable 1`] = `
+[
+  {
+    "content": "Topic: photosynthesis
+Difficulty: EASY
+
+GROUNDING CONTEXT (Wikipedia article: "Photosynthesis"):
+"""
+Photosynthesis is a biological process used by plants and some other organisms to convert light energy into chemical energy.
+"""
+Source: https://en.wikipedia.org/wiki/Photosynthesis
+
+Produce five multiple-choice questions at the specified difficulty, grounded strictly in the context above. Use the generate_quiz tool.",
+    "role": "user",
+  },
+]
+`;
+
+exports[`generator prompt > user message with validation feedback appended 1`] = `
+[
+  {
+    "content": "Topic: photosynthesis
+Difficulty: MEDIUM
+
+GROUNDING CONTEXT (Wikipedia article: "Photosynthesis"):
+"""
+Short summary text.
+"""
+Source: https://en.wikipedia.org/wiki/Photosynthesis
+
+Produce five multiple-choice questions at the specified difficulty, grounded strictly in the context above. Use the generate_quiz tool.
+
+PREVIOUS ATTEMPT FAILED VALIDATION:
+questions: must contain exactly 5 items
+Regenerate, correcting the issue.",
+    "role": "user",
+  },
+]
+`;
