@@ -1,5 +1,74 @@
 <script setup lang="ts">
-// Phase 3 will populate this view with TopicInput + DifficultySelect (two-step flow).
+import { nextTick, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useQuizSession } from '@/composables/useQuizSession';
+import { useClassifier } from '@/composables/useClassifier';
+import TopicInput from '@/components/TopicInput.vue';
+import DifficultySelect from '@/components/DifficultySelect.vue';
+import ErrorState from '@/components/ErrorState.vue';
+
+const router = useRouter();
+const session = useQuizSession();
+const { classifying, error: classifierError, classify } = useClassifier();
+
+const step = ref<'topic' | 'difficulty' | 'rejected'>('topic');
+const rejection = ref<{ title: string; message: string } | null>(null);
+const difficultyHeading = ref<HTMLElement | null>(null);
+
+const EXAMPLE_SUGGESTIONS = [
+  'The French Revolution',
+  'Photosynthesis',
+  'Ancient Egypt',
+  'The Apollo missions',
+];
+
+async function onTopicSubmit(): Promise<void> {
+  rejection.value = null;
+  const result = await classify(session.topic.value.trim());
+  session.lastClassifierBlock.value = result;
+
+  if (!result) return;
+
+  if (!result.viable) {
+    rejection.value = {
+      title: "Can't quiz on this topic",
+      message:
+        result.reason ||
+        "This topic doesn't have enough factual content to generate reliable questions. Try something like a historical event, scientific concept, or geographic region.",
+    };
+    step.value = 'rejected';
+    return;
+  }
+
+  if (!result.appropriate) {
+    rejection.value = {
+      title:
+        result.intent === 'careless'
+          ? "Let's try that without the language"
+          : 'This topic is off-limits',
+      message:
+        result.intent === 'careless'
+          ? "Your topic contains language that isn't appropriate here. If you meant something legitimate, try rephrasing without the vulgar terms."
+          : result.reason ||
+            "This topic isn't something we can quiz on. Please pick a different subject.",
+    };
+    step.value = 'rejected';
+    return;
+  }
+
+  step.value = 'difficulty';
+  await nextTick();
+  difficultyHeading.value?.focus();
+}
+
+function onGenerateSubmit(): void {
+  void router.push('/quiz');
+}
+
+function resetToTopic(): void {
+  step.value = 'topic';
+  rejection.value = null;
+}
 </script>
 
 <template>
@@ -9,13 +78,68 @@
         Generate a quiz
       </h1>
       <p class="text-ink-600">
-        Pick any topic. We'll ground it in Wikipedia and generate five multiple-choice
-        questions.
+        Pick a topic. We'll ground it in Wikipedia and Claude will write five
+        multiple-choice questions.
       </p>
     </header>
 
     <div class="card">
-      <p class="text-ink-500 text-sm">Topic input — coming in Phase 3.</p>
+      <Transition name="fade" mode="out-in">
+        <div v-if="step === 'topic'" key="topic" class="space-y-3">
+          <TopicInput
+            v-model="session.topic.value"
+            :disabled="classifying"
+            @submit="onTopicSubmit"
+          />
+          <p v-if="classifying" aria-live="polite" class="text-sm text-ink-500">
+            Checking topic…
+          </p>
+          <p v-if="classifierError" role="alert" class="text-sm text-red-600">
+            {{ classifierError }}
+          </p>
+        </div>
+
+        <div v-else-if="step === 'difficulty'" key="difficulty" class="space-y-4">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-ink-500 font-medium">
+              Topic
+            </p>
+            <h2
+              ref="difficultyHeading"
+              tabindex="-1"
+              class="text-lg font-medium text-ink-900 focus:outline-none"
+            >
+              {{ session.topic.value }}
+            </h2>
+          </div>
+          <DifficultySelect
+            v-model="session.difficulty.value"
+            @submit="onGenerateSubmit"
+            @back="step = 'topic'"
+          />
+        </div>
+
+        <div v-else key="rejected">
+          <ErrorState
+            v-if="rejection"
+            :title="rejection.title"
+            :message="rejection.message"
+            :suggestions="EXAMPLE_SUGGESTIONS"
+            @retry="resetToTopic"
+          />
+        </div>
+      </Transition>
     </div>
   </section>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.12s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
