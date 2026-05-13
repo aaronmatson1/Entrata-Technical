@@ -93,7 +93,7 @@ CORE RULES — these never bend:
 3. Do NOT introduce facts that are not supported by the provided Wikipedia context. If a fact isn't in the context, don't quiz on it.
 4. Avoid opinion-based, context-dependent, or debatable questions (no "Who is the greatest...", no "Which is more important...").
 5. Distractors must be plausible but clearly wrong on careful reading.
-6. Explanations must reference the context (e.g. "According to the article..."), not the model's prior knowledge.
+6. Write explanations in direct, confident language. State facts directly — do NOT use meta-references to the source like "According to the article", "The article states", "As mentioned in the context", or similar phrases. Only use facts from the provided context.
 
 OUTPUT PROTOCOL:
 - You have two tools available: generate_quiz and refuse_topic.
@@ -131,7 +131,7 @@ export function buildGeneratorMessages(input: GeneratorUserMessageInput): Array<
   return [
     {
       role: 'user',
-      content: `Topic: ${input.topic}
+      content: `Topic: <topic>${input.topic}</topic>
 Difficulty: ${input.difficulty.toUpperCase()}
 
 GROUNDING CONTEXT (Wikipedia article: "${input.context.title}"):

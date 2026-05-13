@@ -3,11 +3,12 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { RouterLink, useRouter } from 'vue-router';
 import { useQuizStorage } from '@/composables/useQuizStorage';
 import QuizResults from '@/components/QuizResults.vue';
+import type { FlagCategory } from '@/types/quiz';
 
 const props = defineProps<{ id: string }>();
 
 const router = useRouter();
-const { getQuiz, deleteQuiz } = useQuizStorage();
+const { getQuiz, saveQuiz, deleteQuiz } = useQuizStorage();
 const heading = ref<HTMLElement | null>(null);
 
 const quiz = computed(() => getQuiz(props.id));
@@ -27,6 +28,27 @@ onMounted(async () => {
 
 function formatDate(ms: number): string {
   return new Date(ms).toLocaleString();
+}
+
+async function onFlag(payload: { questionId: string; category: FlagCategory }): Promise<void> {
+  if (!quiz.value) return;
+  const updated = { ...quiz.value, flagged: [...new Set([...quiz.value.flagged, payload.questionId])] };
+  saveQuiz(updated);
+  try {
+    await fetch('/api/flags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        quizId: quiz.value.id,
+        questionId: payload.questionId,
+        topic: quiz.value.topic,
+        category: payload.category,
+        generatedAt: quiz.value.completedAt,
+      }),
+    });
+  } catch {
+    // fire-and-forget
+  }
 }
 
 function confirmDelete(): void {
@@ -79,6 +101,9 @@ function confirmDelete(): void {
       :quiz-id="quiz.id"
       :topic="quiz.topic"
       :generated-at="quiz.completedAt"
+      :source-url="null"
+      :source-title="null"
+      @flag="onFlag"
     />
 
     <div class="flex justify-between pt-2">

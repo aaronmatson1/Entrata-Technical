@@ -24,7 +24,7 @@ function buildSnapshot(): CompletedQuiz | null {
     id,
     topic: session.topic.value,
     difficulty: session.difficulty.value,
-    completedAt: generatedAt,
+    completedAt: Date.now(),
     score: { correct: result.value.correct, total: result.value.total },
     questions: session.questions.value,
     answers: { ...session.answers.value },
@@ -65,6 +65,7 @@ async function onFlag(payload: { questionId: string; category: FlagCategory }): 
 }
 
 function quizAgain(): void {
+  session.questions.value = [];
   session.clearAnswers();
   void router.push('/quiz');
 }
@@ -72,6 +73,19 @@ function quizAgain(): void {
 function newTopic(): void {
   session.reset();
   void router.push('/');
+}
+
+const nextDifficulty = computed<'medium' | 'hard' | null>(() => {
+  if (session.difficulty.value === 'easy') return 'medium';
+  if (session.difficulty.value === 'medium') return 'hard';
+  return null;
+});
+
+function tryHarder(): void {
+  if (!nextDifficulty.value) return;
+  session.difficulty.value = nextDifficulty.value;
+  session.clearAnswers();
+  void router.push('/quiz');
 }
 </script>
 
@@ -102,8 +116,24 @@ function newTopic(): void {
       :quiz-id="session.quizId.value"
       :topic="session.topic.value"
       :generated-at="session.generatedAt.value"
+      :source-url="session.sourceUrl.value"
+      :source-title="session.sourceTitle.value"
       @flag="onFlag"
     />
+
+    <div
+      v-if="nextDifficulty"
+      class="card flex items-center justify-between gap-4 bg-accent-50 border-accent-200"
+    >
+      <p class="text-sm text-ink-700">
+        Ready for a bigger challenge? Try
+        <span class="font-medium capitalize">{{ nextDifficulty }}</span>
+        on the same topic.
+      </p>
+      <button type="button" class="btn-primary shrink-0" @click="tryHarder">
+        Try {{ nextDifficulty }}
+      </button>
+    </div>
 
     <div class="flex gap-3 pt-2">
       <button type="button" class="btn-secondary" @click="quizAgain">

@@ -11,6 +11,8 @@ defineProps<{
   quizId: string;
   topic: string;
   generatedAt: number;
+  sourceUrl: string | null;
+  sourceTitle: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -92,6 +94,16 @@ function submitFlag(category: FlagCategory): void {
         </button>
       </div>
     </article>
+
+    <p v-if="sourceUrl" class="text-xs text-ink-500 pt-2">
+      Source:
+      <a
+        :href="sourceUrl"
+        target="_blank"
+        rel="noopener"
+        class="underline hover:text-ink-800"
+      >Wikipedia — {{ sourceTitle ?? 'article' }}</a>
+    </p>
 
     <FlagModal
       v-if="flaggingId"
