@@ -22,6 +22,30 @@ const EXAMPLE_SUGGESTIONS = [
   'The Apollo missions',
 ];
 
+const INTERNAL_REASONS = new Set([
+  'Classifier returned malformed input.',
+  'Classifier did not return a structured result.',
+]);
+
+function safeReason(reason: string, fallback: string): string {
+  return reason && !INTERNAL_REASONS.has(reason) ? reason : fallback;
+}
+
+function postTopicBlock(result: { viable: boolean; appropriate: boolean; intent: 'legitimate' | 'careless' | 'deliberate' | 'unclear'; reason: string }): void {
+  fetch('/api/topic-block', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      topic: session.topic.value.trim(),
+      viable: result.viable,
+      appropriate: result.appropriate,
+      intent: result.intent,
+      reason: result.reason,
+      blockedAt: Date.now(),
+    }),
+  }).catch(() => {});
+}
+
 async function onTopicSubmit(): Promise<void> {
   rejection.value = null;
   const result = await classify(session.topic.value.trim());
@@ -32,11 +56,13 @@ async function onTopicSubmit(): Promise<void> {
   if (!result.viable) {
     rejection.value = {
       title: "Can't quiz on this topic",
-      message:
-        result.reason ||
+      message: safeReason(
+        result.reason,
         "This topic doesn't have enough factual content to generate reliable questions. Try something like a historical event, scientific concept, or geographic region.",
+      ),
     };
     step.value = 'rejected';
+    postTopicBlock(result);
     return;
   }
 
@@ -49,10 +75,13 @@ async function onTopicSubmit(): Promise<void> {
       message:
         result.intent === 'careless'
           ? "Your topic contains language that isn't appropriate here. If you meant something legitimate, try rephrasing without the vulgar terms."
-          : result.reason ||
-            "This topic isn't something we can quiz on. Please pick a different subject.",
+          : safeReason(
+              result.reason,
+              "This topic isn't something we can quiz on. Please pick a different subject.",
+            ),
     };
     step.value = 'rejected';
+    postTopicBlock(result);
     return;
   }
 
