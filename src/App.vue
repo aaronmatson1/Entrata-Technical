@@ -39,7 +39,7 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue';
       </main>
 
       <footer class="border-t border-ink-100 py-6 text-center text-xs text-ink-500">
-        Built with Vue 3 + Claude.
+        Built with Vue 3 + Claude. See <a href="https://github.com/aaronmatson1/Entrata-Technical">Repo</a> for technical details.
       </footer>
     </div>
   </ErrorBoundary>
