@@ -16,13 +16,13 @@ const groupName = computed(() => `q-${props.question.id}`);
 </script>
 
 <template>
-  <fieldset class="card space-y-4" :disabled="disabled">
-    <legend class="block">
+  <fieldset class="card space-y-4" :aria-labelledby="`${groupName}-label`" :disabled="disabled">
+    <div :id="`${groupName}-label`">
       <span class="text-xs font-medium uppercase tracking-wide text-ink-500"
         >Question {{ index + 1 }}</span
       >
       <p class="text-lg font-medium text-ink-900 mt-1">{{ question.question }}</p>
-    </legend>
+    </div>
     <div class="space-y-2">
       <label
         v-for="key in orderedKeys"
