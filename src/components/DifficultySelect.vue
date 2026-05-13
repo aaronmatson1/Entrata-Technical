@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import type { Difficulty } from '@/types/quiz';
 
 const props = defineProps<{ modelValue: Difficulty; disabled?: boolean }>();
@@ -14,9 +15,31 @@ const tiers: Array<{ value: Difficulty; label: string; description: string }> = 
   { value: 'hard', label: 'Hard', description: 'Synthesis. Requires connecting facts.' },
 ];
 
+const buttonRefs = ref<Record<Difficulty, HTMLButtonElement | null>>({
+  easy: null,
+  medium: null,
+  hard: null,
+});
+
 function pick(value: Difficulty): void {
   if (props.disabled) return;
   emit('update:modelValue', value);
+}
+
+function onKeydown(e: KeyboardEvent, current: Difficulty): void {
+  if (props.disabled) return;
+  const idx = tiers.findIndex((t) => t.value === current);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = tiers[(idx + 1) % tiers.length]!;
+    pick(next.value);
+    buttonRefs.value[next.value]?.focus();
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = tiers[(idx - 1 + tiers.length) % tiers.length]!;
+    pick(prev.value);
+    buttonRefs.value[prev.value]?.focus();
+  }
 }
 </script>
 
@@ -35,6 +58,7 @@ function pick(value: Difficulty): void {
         <button
           v-for="tier in tiers"
           :key="tier.value"
+          :ref="(el) => { buttonRefs[tier.value] = el as HTMLButtonElement | null }"
           type="button"
           role="radio"
           :aria-checked="modelValue === tier.value"
@@ -47,6 +71,7 @@ function pick(value: Difficulty): void {
               : 'border-ink-200 bg-white hover:border-ink-300'
           "
           @click="pick(tier.value)"
+          @keydown="onKeydown($event, tier.value)"
         >
           <span class="block font-medium text-ink-900">{{ tier.label }}</span>
           <span class="block text-xs text-ink-500 mt-1">{{ tier.description }}</span>

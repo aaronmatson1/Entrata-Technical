@@ -29,34 +29,51 @@ export type GeneratorOutcome =
 export function useQuizGenerator(): {
   stage: Ref<GenerateStage | 'idle'>;
   generate: (input: { topic: string; difficulty: Difficulty }) => Promise<GeneratorOutcome>;
+  abort: () => void;
 } {
   const stage = ref<GenerateStage | 'idle'>('idle');
+  let controller: AbortController | null = null;
+
+  function abort(): void {
+    controller?.abort();
+    controller = null;
+  }
 
   async function generate(input: {
     topic: string;
     difficulty: Difficulty;
   }): Promise<GeneratorOutcome> {
+    abort();
+    controller = new AbortController();
     stage.value = 'wikipedia';
     try {
-      return await streamGeneration(input, stage);
+      return await streamGeneration(input, stage, controller.signal);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        stage.value = 'idle';
+        return { kind: 'error', message: 'Aborted' };
+      }
       const message = err instanceof Error ? err.message : 'Unknown error';
       stage.value = 'error';
       return { kind: 'error', message };
+    } finally {
+      controller = null;
     }
   }
 
-  return { stage, generate };
+  return { stage, generate, abort };
 }
 
 async function streamGeneration(
   input: { topic: string; difficulty: Difficulty },
   stage: Ref<GenerateStage | 'idle'>,
+  signal: AbortSignal,
 ): Promise<GeneratorOutcome> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(input),
+    signal,
   });
 
   if (res.status === 429) {

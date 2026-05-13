@@ -16,17 +16,46 @@ const choices: Array<{ value: FlagCategory; label: string; hint: string }> = [
   { value: 'other', label: 'Other', hint: 'Something else is wrong with it.' },
 ];
 
-function onEscape(e: KeyboardEvent): void {
-  if (e.key === 'Escape') emit('cancel');
+const dialogRef = ref<HTMLElement | null>(null);
+
+function getFocusable(): HTMLElement[] {
+  if (!dialogRef.value) return [];
+  return Array.from(
+    dialogRef.value.querySelectorAll<HTMLElement>('input, button:not([disabled])'),
+  );
+}
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    emit('cancel');
+    return;
+  }
+  if (e.key === 'Tab') {
+    const focusable = getFocusable();
+    if (focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
 }
 
 onMounted(() => {
-  document.addEventListener('keydown', onEscape);
+  document.addEventListener('keydown', onKeydown);
   const first = document.getElementById('flag-modal-first');
   first?.focus();
 });
 onUnmounted(() => {
-  document.removeEventListener('keydown', onEscape);
+  document.removeEventListener('keydown', onKeydown);
 });
 </script>
 
@@ -38,7 +67,7 @@ onUnmounted(() => {
     class="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 px-4"
     @click.self="$emit('cancel')"
   >
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+    <div ref="dialogRef" class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
       <h2 id="flag-title" class="text-lg font-semibold text-ink-900">
         Flag this question
       </h2>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { nanoid } from 'nanoid';
 import { useQuizSession } from '@/composables/useQuizSession';
@@ -11,7 +11,8 @@ import ErrorState from '@/components/ErrorState.vue';
 
 const router = useRouter();
 const session = useQuizSession();
-const { stage, generate } = useQuizGenerator();
+const { stage, generate, abort } = useQuizGenerator();
+onUnmounted(() => { abort(); });
 
 const ready = ref(false);
 const failure = ref<{ title: string; message: string; suggestions?: string[] } | null>(
