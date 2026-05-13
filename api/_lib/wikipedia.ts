@@ -46,10 +46,15 @@ async function fetchSummary(title: string): Promise<WikipediaContext | null> {
   };
   if (data.type === 'disambiguation') return null;
   if (!data.extract || data.extract.length < 50) return null;
+  const rawUrl = data.content_urls?.desktop?.page;
+  const safeUrl =
+    typeof rawUrl === 'string' && rawUrl.startsWith('https://en.wikipedia.org/')
+      ? rawUrl
+      : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title ?? title)}`;
   return {
     title: data.title ?? title,
     summary: data.extract.slice(0, MAX_SUMMARY_CHARS),
-    url: data.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
+    url: safeUrl,
   };
 }
 
@@ -70,7 +75,7 @@ export async function getWikipediaContext(topic: string): Promise<WikipediaConte
   if (direct) return direct;
 
   const fuzzy = await fuzzyFind(topic);
-  if (fuzzy && fuzzy.toLowerCase() !== topic.toLowerCase()) {
+  if (fuzzy && fuzzy !== topic) {
     const viaFuzzy = await fetchSummary(fuzzy);
     if (viaFuzzy) return viaFuzzy;
   }

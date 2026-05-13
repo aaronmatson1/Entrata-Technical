@@ -45,11 +45,20 @@ export const refuseTopicToolInputSchema = z.object({
 });
 
 export const flagRequestSchema = z.object({
-  quizId: z.string().min(1),
-  questionId: z.string().min(1),
-  topic: z.string().min(1),
+  quizId: z.string().min(1).max(50),
+  questionId: z.string().min(1).max(50),
+  topic: z.string().min(1).max(TOPIC_MAX),
   category: z.enum(['inaccurate', 'ambiguous', 'poorly_worded', 'other']),
-  generatedAt: z.number().int(),
+  generatedAt: z.number().int().min(0),
+});
+
+export const topicBlockSchema = z.object({
+  topic: z.string().min(1).max(TOPIC_MAX),
+  viable: z.boolean(),
+  appropriate: z.boolean(),
+  intent: z.enum(['legitimate', 'careless', 'deliberate', 'unclear']),
+  reason: z.string().max(300),
+  blockedAt: z.number().int().min(0),
 });
 
 export const errorReportSchema = z.object({
@@ -65,3 +74,4 @@ export type GenerateRequest = z.infer<typeof generateRequestSchema>;
 export type ClassifierResult = z.infer<typeof classifierToolInputSchema>;
 export type GeneratedQuiz = z.infer<typeof generateQuizToolInputSchema>;
 export type RefusalResult = z.infer<typeof refuseTopicToolInputSchema>;
+export type TopicBlock = z.infer<typeof topicBlockSchema>;

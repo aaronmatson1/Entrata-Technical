@@ -39,14 +39,7 @@ import ErrorBoundary from '@/components/ErrorBoundary.vue';
       </main>
 
       <footer class="border-t border-ink-100 py-6 text-center text-xs text-ink-500">
-        Built with Vue 3 + Claude. See
-        <a
-          href="https://github.com/"
-          class="underline hover:text-ink-700"
-          rel="noopener"
-          >README</a
-        >
-        for architecture notes.
+        Built with Vue 3 + Claude.
       </footer>
     </div>
   </ErrorBoundary>

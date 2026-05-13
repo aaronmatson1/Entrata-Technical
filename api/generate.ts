@@ -6,6 +6,7 @@ import {
   generateRequestSchema,
   generateQuizToolInputSchema,
   refuseTopicToolInputSchema,
+  classifierToolInputSchema,
 } from './_lib/schemas.js';
 import { getWikipediaContext, WikipediaNotFoundError } from './_lib/wikipedia.js';
 import { openSSE } from './_lib/sse.js';
@@ -17,8 +18,15 @@ import {
   GENERATOR_SYSTEM,
   buildGeneratorMessages,
 } from './_lib/prompts/generator.js';
+import {
+  CLASSIFIER_SYSTEM,
+  CLASSIFIER_TOOL,
+  CLASSIFIER_TOOL_NAME,
+  buildClassifierMessages,
+} from './_lib/prompts/classifier.js';
 
 const GENERATOR_TIMEOUT_MS = 45000;
+const CLASSIFIER_TIMEOUT_MS = 15000;
 const MAX_TOKENS = 8192;
 
 export const config = {
@@ -50,6 +58,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const stream = openSSE(res);
 
   try {
+    // Stage 0: classifier gate — blocks direct API callers that bypass the UI flow
+    const classification = await runClassifier(topic);
+    if (!classification.viable || !classification.appropriate) {
+      stream.send({
+        stage: 'done',
+        payload: {
+          type: 'refusal',
+          reason: classification.reason || 'This topic cannot be used for a quiz.',
+          category: !classification.viable ? 'ungroundable' : 'harmful',
+        },
+      });
+      stream.close();
+      return;
+    }
+
     // Stage 1: Wikipedia
     stream.send({ stage: 'wikipedia' });
     let context;
@@ -95,9 +118,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     });
     stream.close();
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error';
+    console.error('[generate] unhandled error:', err);
     try {
-      stream.send({ stage: 'error', error: message });
+      stream.send({ stage: 'error', error: 'generator_unavailable' });
     } catch {
       // SSE write may fail if connection dropped
     }
@@ -248,4 +271,57 @@ function isTransient(err: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type ClassifierResult = {
+  viable: boolean;
+  appropriate: boolean;
+  intent: 'legitimate' | 'careless' | 'deliberate' | 'unclear';
+  reason: string;
+};
+
+async function runClassifier(topic: string): Promise<ClassifierResult> {
+  try {
+    return await callClassifierOnce(topic);
+  } catch (err) {
+    if (isTransient(err)) {
+      await sleep(400);
+      try {
+        return await callClassifierOnce(topic);
+      } catch (retryErr) {
+        console.warn('[generate] classifier failed open after retry:', retryErr instanceof Error ? retryErr.name : retryErr);
+        return { viable: true, appropriate: true, intent: 'unclear', reason: '' };
+      }
+    }
+    console.warn('[generate] classifier failed open:', err instanceof Error ? err.name : err);
+    return { viable: true, appropriate: true, intent: 'unclear', reason: '' };
+  }
+}
+
+async function callClassifierOnce(topic: string): Promise<ClassifierResult> {
+  const client = getAnthropic();
+  const response = await client.messages.create(
+    {
+      model: env.MODEL_CLASSIFIER,
+      max_tokens: 512,
+      system: CLASSIFIER_SYSTEM,
+      tools: [CLASSIFIER_TOOL],
+      tool_choice: { type: 'tool', name: CLASSIFIER_TOOL_NAME },
+      messages: buildClassifierMessages(topic),
+    },
+    { timeout: CLASSIFIER_TIMEOUT_MS },
+  );
+
+  const toolUse = response.content.find((block) => block.type === 'tool_use');
+  if (!toolUse || toolUse.type !== 'tool_use' || toolUse.name !== CLASSIFIER_TOOL_NAME) {
+    console.warn('[generate] classifier returned no tool use, failing open');
+    return { viable: true, appropriate: true, intent: 'unclear', reason: '' };
+  }
+
+  const parsed = classifierToolInputSchema.safeParse(toolUse.input);
+  if (!parsed.success) {
+    console.warn('[generate] classifier schema invalid, failing open:', parsed.error.flatten());
+    return { viable: true, appropriate: true, intent: 'unclear', reason: '' };
+  }
+  return parsed.data;
 }

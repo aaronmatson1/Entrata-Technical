@@ -30,6 +30,8 @@ function getLimiter(key: string, capacity: number, windowSec: number): Ratelimit
 }
 
 export function getClientIp(req: VercelRequest): string {
+  const vercel = req.headers['x-vercel-forwarded-for'];
+  if (typeof vercel === 'string' && vercel) return vercel.trim();
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') {
     const first = forwarded.split(',')[0];

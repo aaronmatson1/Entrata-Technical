@@ -37,8 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const result = await callClassifierWithRetry(parsed.data.topic);
     res.status(200).json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'unknown error';
-    res.status(502).json({ error: 'classifier_failed', detail: message });
+    console.error('[classify] error:', err);
+    res.status(502).json({ error: 'classifier_failed' });
   }
 }
 
