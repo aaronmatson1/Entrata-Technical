@@ -223,6 +223,11 @@ exports[`generator prompt > user message for easy difficulty is stable 1`] = `
     "content": "Topic: <topic>photosynthesis</topic>
 Difficulty: EASY
 
+RUBRIC FOR THIS REQUEST — apply only this level:
+EASY — definitional and recognition questions.
+Pattern: "What is X?" / "Which term describes X?" / "X is best defined as ___"
+Distractors are clearly wrong on a careful reading. A reader who has read the context once should score 5/5.
+
 GROUNDING CONTEXT (Wikipedia article: "Photosynthesis"):
 """
 Photosynthesis is a biological process used by plants and some other organisms to convert light energy into chemical energy.
@@ -240,6 +245,11 @@ exports[`generator prompt > user message with validation feedback appended 1`] =
   {
     "content": "Topic: <topic>photosynthesis</topic>
 Difficulty: MEDIUM
+
+RUBRIC FOR THIS REQUEST — apply only this level:
+MEDIUM — application and comprehension.
+Pattern: "Which of the following is an example of X?" / "X best explains which of these outcomes?"
+Distractors are plausible to a casual reader but a careful reader can eliminate them.
 
 GROUNDING CONTEXT (Wikipedia article: "Photosynthesis"):
 """

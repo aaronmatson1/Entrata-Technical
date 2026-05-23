@@ -134,6 +134,9 @@ export function buildGeneratorMessages(input: GeneratorUserMessageInput): Array<
       content: `Topic: <topic>${input.topic}</topic>
 Difficulty: ${input.difficulty.toUpperCase()}
 
+RUBRIC FOR THIS REQUEST — apply only this level:
+${DIFFICULTY_RUBRIC[input.difficulty]}
+
 GROUNDING CONTEXT (Wikipedia article: "${input.context.title}"):
 """
 ${input.context.summary}

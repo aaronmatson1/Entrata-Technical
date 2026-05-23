@@ -28,6 +28,37 @@ const BASE_CONTEXT = {
 // Difficulty keyword injection
 // ---------------------------------------------------------------------------
 
+describe('buildGeneratorMessages — selected rubric body per request', () => {
+  const RUBRIC_BODY_MARKERS = {
+    easy: 'EASY — definitional and recognition questions.',
+    medium: 'MEDIUM — application and comprehension.',
+    hard: 'HARD — synthesis and nuance.',
+  } as const;
+
+  (['easy', 'medium', 'hard'] as const).forEach((level) => {
+    it(`includes the ${level} rubric body in the user message when difficulty is "${level}"`, () => {
+      const [msg] = buildGeneratorMessages({
+        topic: 'Photosynthesis',
+        difficulty: level,
+        context: BASE_CONTEXT,
+      });
+      expect(msg!.content).toContain(RUBRIC_BODY_MARKERS[level]);
+    });
+
+    it(`excludes the other two rubric bodies when difficulty is "${level}"`, () => {
+      const [msg] = buildGeneratorMessages({
+        topic: 'Photosynthesis',
+        difficulty: level,
+        context: BASE_CONTEXT,
+      });
+      const others = (['easy', 'medium', 'hard'] as const).filter((l) => l !== level);
+      for (const other of others) {
+        expect(msg!.content).not.toContain(RUBRIC_BODY_MARKERS[other]);
+      }
+    });
+  });
+});
+
 describe('buildGeneratorMessages — difficulty rubric', () => {
   const difficulties: Difficulty[] = ['easy', 'medium', 'hard'];
 
