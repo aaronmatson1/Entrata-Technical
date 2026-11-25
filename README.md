@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/aaronmatson1/Entrata-Technical/actions/workflows/ci.yml/badge.svg)](https://github.com/aaronmatson1/Entrata-Technical/actions/workflows/ci.yml)
 
-> **Live demo:** _add Vercel URL here once deployed_
+> **Live demo:** https://entrata-technical.vercel.app
 
 ---
 
